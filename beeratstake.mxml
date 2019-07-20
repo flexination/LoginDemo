@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" layout="vertical" backgroundColor="#c1d1e8" viewSourceURL="srcview/index.html">
+	<mx:RemoteObject id="roBeer" 
+		destination="ColdFusion" 
+		source="flextraining.logindemo.components.flex2userGateway"
+		showBusyCursor="true">
+		<mx:method name="getAllAsQuery" result="getAllAsQuery_Handler(event)" fault="ro_fault(event)"/>
+		<mx:method name="doLogin" result="doLogin_Handler(event)" fault="ro_fault(event)"/>
+		<mx:method name="save" result="save_Handler(event)" fault="ro_fault(event)"/>
+	</mx:RemoteObject>
+
+	<mx:Script>
+		<![CDATA[
+		    import mx.rpc.events.ResultEvent;
+         	import mx.rpc.events.FaultEvent;
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+         	import mx.utils.ObjectUtil;
+         	import components.flex2user;
+	    	import flash.utils.Timer;
+	    	import flash.events.TimerEvent;
+			import actionscripts.QueryString;
+			import mx.events.ValidationResultEvent;
+			import mx.controls.ToolTip;
+	        import mx.managers.ToolTipManager;
+			import actionscripts.NoSoupSound;
+	        
+
+			[Bindable] private var arcUsers:ArrayCollection;
+			[Bindable] private var oUser:flex2user = new flex2user;
+			[Bindable] private var sLoginSucess:String = "false";
+			[Bindable] private var blnSaveSucess:Boolean = false;
+			[Bindable] private var isAuthenticated:String = 'N'
+			// Declare other properties in Application scope.
+			private var qs:QueryString;
+			private var vResult:ValidationResultEvent;
+			private var msg:String = "";
+			private var count:Number = 0;
+			private var msgprefix:String = "";
+			private var ErrorTip:ToolTip;
+			private var myNoSoupSound:NoSoupSound = new NoSoupSound();
+			
+
+			private function getAllUsers():void {
+				//retrieve all the Users
+				roBeer.getAllAsQuery(isAuthenticated);
+			}
+
+			private function checkLogin():void {
+				oUser.username = tiUsername.text;
+				oUser.passwd = tiPassword.text;
+				roBeer.doLogin(isAuthenticated,oUser.username,oUser.passwd);
+			}
+			
+		    private function getAllAsQuery_Handler(event:ResultEvent):void {
+		    	//Alert.show(ObjectUtil.toString(event.result));
+	        	arcUsers = event.result as ArrayCollection;
+		    }
+
+			private function doSave():void {
+				// call the roBeer save method
+				oUser.username = tiNewUsername.text;
+				oUser.fullname = tiNewFullname.text;
+				oUser.email = tiEmail.text;
+				//create a new faq
+				roBeer.save(isAuthenticated,oUser);
+				progressSaveIndicator();
+				//retrieve all the active faqs
+				roBeer.getAllAsQuery(isAuthenticated);
+				// clear out all the fields
+				cleanupAfter();
+			}
+			
+			private function cleanupAfter():void {
+				tiNewUsername.text = '';
+				tiNewFullname.text = '';
+        		tiEmail.text = '';
+			}
+
+			private function progressSaveIndicator():void {
+				var myTimer:Timer = new Timer(2000, 0);
+				myTimer.addEventListener("timer", onTimer);
+				myTimer.start();
+				lblProgress.setStyle("color", "green");
+				lblProgress.setStyle("fontWeight", "bold");
+				lblProgress.text = "Saving";
+			}
+	
+			private function onTimer(event:TimerEvent):void {
+				lblProgress.text = "";
+			}
+			
+			private function save_Handler(event:ResultEvent):void {
+				blnSaveSucess = event.result as Boolean;
+			}
+			
+			private function doLogin_Handler(event:ResultEvent):void {
+				sLoginSucess = event.result as String;
+				if (sLoginSucess=="true") {
+					isAuthenticated = 'Y';
+					roBeer.getAllAsQuery(isAuthenticated);
+					vstBeerFest.selectedIndex = 1;
+					lblWelcome.visible = true;
+				} else {
+					imgNoAccess.visible = true;
+					noSoup();
+					//Alert.show("Sorry, no beer for you!","Access Denied");
+				}
+			}	
+
+			private function noSoup():void {
+				myNoSoupSound.getSound();
+			}
+					
+	        private function ro_fault(event:FaultEvent):void {
+	            // dump error message
+	            Alert.show(ObjectUtil.toString(event.fault));
+	        }
+
+	        private function validateForm():void {
+				msg = "";
+				count = 0;
+	            // Validate the Username. 
+	            vResult = vUsername.validate();
+	            // If the Username is invalid.
+	            if (vResult.type==ValidationResultEvent.INVALID) {
+	                msg = "You must enter a Username.\n\n";
+	                count++;
+		        }
+	            // Validate the Full Name. 
+	            vResult = vFullname.validate();
+	            // If the Full Name is invalid.
+	            if (vResult.type==ValidationResultEvent.INVALID) { 
+	                msg = msg + "You must enter a Full Name.\n\n";
+	                count++;
+		        }
+	            // Validate the Email. 
+	            vResult = vEmail.validate();
+	            // If the Email is invalid.
+	            if (vResult.type==ValidationResultEvent.INVALID) { 
+	                msg = msg + "You must enter an Email Address.\n\n";
+	                count++;
+		        }
+				if (msg!="") {
+					if (count>1) {
+						msgprefix = "You must correct the following issues:";
+					}
+					mx.controls.Alert.show(msgprefix + "\n\n" + msg, "Required Fields Alert...");
+					return;
+				} else {
+					doSave();
+				}
+			}
+		]]>
+	</mx:Script>
+
+	<mx:Style>
+	   ToolTip { font-family: "Verdanna"; font-size: 12; font-weight: "normal"; background-color: "0x7B68EE"; color: "0xFFFFFF"; }
+	</mx:Style>
+
+	<!-- Define validators. -->
+	<mx:StringValidator id="vUsername" source="{tiNewUsername}" property="text" requiredFieldError="Please enter a Username."/>
+	<mx:StringValidator id="vFullname" source="{tiNewFullname}" property="text" requiredFieldError="Please enter a Full Name."/>
+	<mx:StringValidator id="vEmail" source="{tiEmail}" property="text" requiredFieldError="Please enter an Email Address."/>
+
+	<mx:Panel id="pnlFaqs" width="98%" height="98%" layout="vertical" fontFamily="Verdanna" fontSize="14" color="#000080" title="Portal Users">
+		<mx:ViewStack id="vstBeerFest" width="100%" height="98%">
+			<mx:VBox width="30%" height="98%">
+				<mx:Form width="100%" height="100%">
+					<mx:FormItem id="fitUsername" required="true">
+						<mx:Label text="Username   :" fontFamily="Verdanna" fontSize="11" fontWeight="bold"/>
+						<mx:TextInput id="tiUsername" width="200"/>
+					</mx:FormItem>
+					<mx:FormItem id="fitPassword" required="true">
+						<mx:Label text="Password   :" fontFamily="Verdanna" fontSize="11" fontWeight="bold"/>
+						<mx:TextInput id="tiPassword" width="200"/>
+					</mx:FormItem>
+					<mx:FormItem>
+						<mx:Button label="Login"  click="checkLogin()" fontFamily="Verdanna" fontSize="10" fontWeight="bold"  toolTip="Click to Login..."/>
+					</mx:FormItem>
+					<mx:FormItem>
+						<mx:Image id="imgNoAccess" source="images/250px-Sein_soup_nazi.jpg" visible="false" toolTip="No beer for you!..."/>
+					</mx:FormItem>
+				</mx:Form>
+			</mx:VBox>
+			<mx:VBox width="98%" height="98%">
+				<mx:HBox width="100%" height="20" paddingLeft="980">
+					<mx:Label id="lblWelcome" text="{'Welcome, ' + tiUsername.text.substring(0,1).toUpperCase() + tiUsername.text.substring(1,tiUsername.text.length).toLowerCase()}" fontFamily="Verdanna" fontSize="14" fontWeight="bold" color="#ff6600"/>
+				</mx:HBox>
+				<mx:Form width="100%" height="100%">
+					<mx:FormItem id="fitUsers">
+						<mx:Label text="Existing Users   :" fontFamily="Verdanna" fontSize="11" fontWeight="bold"/>
+						<mx:DataGrid id="dgFAQs" dataProvider="{arcUsers}" rowCount="12" width="450">
+							<mx:columns>
+								<mx:DataGridColumn headerText="Username" dataField="username" width="100"/>
+								<mx:DataGridColumn headerText="Full Name" dataField="fullname" width="100"/>
+							</mx:columns>
+						</mx:DataGrid>
+					</mx:FormItem>
+					<mx:FormItem id="fitNewUsername" required="true">
+						<mx:HBox width="100%">
+							<mx:Label text="Username:" fontFamily="Verdanna" fontSize="10"/>
+							<mx:TextInput id="tiNewUsername" maxChars="20" width="100" height="24" toolTip="Enter a Username..."/>
+						</mx:HBox>
+					</mx:FormItem>
+					<mx:FormItem id="fitNewFullname" required="true">
+						<mx:HBox width="100%">
+							<mx:Label text="Full Name:" fontFamily="Verdanna" fontSize="10"/>
+							<mx:TextInput id="tiNewFullname" maxChars="120" width="100" height="24" toolTip="Enter a Full Name..."/>
+						</mx:HBox>
+					</mx:FormItem>
+					<mx:FormItem id="fitEmail" required="true">
+						<mx:HBox width="100%">
+							<mx:Label text="Email:" fontFamily="Verdanna" fontSize="10"/>
+							<mx:TextInput id="tiEmail" maxChars="120" width="100" height="24" toolTip="Enter a Email for the New User..."/>
+						</mx:HBox>
+					</mx:FormItem>
+					<mx:FormItem>
+						<mx:HBox width="100%">
+							<mx:Button id="btnSave" label="Add New User" click="validateForm()" fontFamily="Verdanna" fontSize="10" fontWeight="bold"  toolTip="Click to add this User..."/>
+							<mx:Label id="lblProgress" color="#000000" fontStyle="italic" fontWeight="bold"/>
+						</mx:HBox>
+					</mx:FormItem>
+				</mx:Form>
+			</mx:VBox>
+		</mx:ViewStack>
+	</mx:Panel>
+</mx:Application>
